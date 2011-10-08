@@ -4,13 +4,16 @@ LDAP Command Line interface.
 
 import ldap
 import csv
+import sys
 
 class LdapUtil:
   """
   LdapUtil class.
 
   """
-  def __init__(self, uri=None, base=None, basep=None, baseg=None, adm=None, passwd=None, verbose=False, test=False):
+  #TODO() Too many arguments (10/5) Reduce this, pass the ini file.
+  def __init__(self, uri=None, base=None, basep=None, baseg=None, adm=None, 
+               passwd=None, verbose=False, test=False):
     """
     One big overloaded method
     """
@@ -26,43 +29,70 @@ class LdapUtil:
     self.test = test
     if self.verbose or self.test:
       print "Connection successful"
-    pass
   #def connect(self):
   #  print self.uri
 
-  def search(self, filter=None, attrib=None):
-    """Testing basic search"""
-    s = self.ldapconn.search_s(self.base, ldap.SCOPE_SUBTREE, filter, attrib)
+  def search(self, base=None, sfilter=None, attrib=None):
+    """Perform a subtree scope search.
+    """
+    if base == None:
+      base = self.base
+    s_obj = self.ldapconn.search_s(base, ldap.SCOPE_SUBTREE, sfilter, attrib)
     if self.verbose:
       print "searching"
-    return s
+    return s_obj
 
-  def getHighestUid(self):
-    list = self.search("uidNumber=*", ['uidNumber', 'gidNumber'])
+  def gethighestuid(self):
+    """Get the Highest UID.
+    """
+    records = self.search(sfilter="uidNumber=*",
+                          attrib=['uidNumber', 'gidNumber'])
     big = 0
-    for i in list:
-      if big < i[1]['uidNumber'][0]:
-        big = i[1]['uidNumber'][0]
+    for record in records:
+      if big < record[1]['uidNumber'][0]:
+        big = record[1]['uidNumber'][0]
       if self.verbose:
         print "biggest ID: %s" % big
     return big
 
-  def addUser(self, filename=None, localuid=None, localgid=None):
-    users = self.readFile(filename)
-    for u in users:
-      name = u[0]
-      surname = u[1]
-      login = u[2]
-      ssh_key = u[3]
-      dn = "uid=%s,%s" % (login, self.basep)
+  def getgroupid(self, group=None):
+    """Return gid if exists, else return guest group id.
+    """
+    search_group = self.search(self.baseg, "cn="+group, ['dn','gidNumber'])
+    return search_group[0][1]['gidNumber'][0]
+
+  def getgroups(self):
+    """Retrieves a groupname with its ids.
+    Returns a dictionaries with group name (cn) values on group ID (gidNumber)
+    keys
+    """
+    search_group = self.search(self.baseg, "cn=*", ['cn','gidNumber'])
+    groups = {}
+    for group in search_group:
+      key = group[1]['gidNumber'][0]
+      val = group[1]['cn'][0]
+      groups[key] = val
+    return groups
+
+  #TODO() Too many local variables (16/15)
+  def adduser(self, filename=None, localuid=None, localgid=None,
+              shell='/bin/bash'):
+    """Add a user, using the next available UID.
+    """
+    users = self.readfile(filename)
+    for user in users:
+      name = user[0]
+      surname = user[1]
+      login = user[2]
+      ssh_key = user[3]
+      ldap_dn = "uid=%s,%s" % (login, self.basep)
       if localuid == None:
-        uid = str(int(self.getHighestUid()) + 1)
+        uid = str(int(self.gethighestuid()) + 1)
       if localgid == None:
         gid = uid
-        self.addGroup(login, gid)
+        self.addgroup(login, gid)
       else:
-        gid = self.getGroupId(localgid)
-
+        gid = self.getgroupid(localgid)
       attrs = [
         ('objectclass', ['person', 'organizationalPerson',
           'inetOrgPerson',
@@ -71,7 +101,7 @@ class LdapUtil:
           'shadowAccount'
           ]),
         ('homeDirectory', ['/home/'+login]),
-        ('loginShell', ['/bin/bash']),
+        ('loginShell', [shell]),
         ('uid', [login]),
         ('sn', [surname]),
         ('givenName', [name]),
@@ -81,36 +111,42 @@ class LdapUtil:
         ('sshPublicKey', [ssh_key]),
       ]
       try:
-        self.ldapconn.add_s(dn, attrs)
+        self.ldapconn.add_s(ldap_dn, attrs)
         print "User '%s' added" % login
-      except ldap.LDAPError, e:
-        print "User ERROR: %s => %s" % (dn, e[0]['info'])
-        #print "%s => %s" % (dn, attrs)
+      except ldap.LDAPError, err:
+        print "User ERROR: %s => %s" % (ldap_dn, err[0]['info'])
+        #print "%s => %s" % (ldap_dn, attrs)
         #print e
 
-  def delUser(self, filename=None):
-    users = self.readFile(filename)
-    for u in users:
+  def deluser(self, filename=None):
+    """Delete a user.    
+    """
+    users = self.readfile(filename)
+    for user in users:
       # search user
-      s = self.search(self.basep, "uid="+u[2], ['dn','uidNumber'] )
-      if len(s) > 0:
-        dn = s[0][0]
-        self.ldapconn.delete_s(dn)
-        print "user '%s' deleted" % u[2]
+      s_obj = self.search(self.basep, "uid="+user[2], ['dn','uidNumber'])
+      if len(s_obj) > 0:
+        ldap_dn = s_obj[0][0]
+        self.ldapconn.delete_s(ldap_dn)
+        print "user '%s' deleted" % user[2]
       else:
-        print "user '%s' not found" % u[2]
+        print "user '%s' not found" % user[2]
       # search corresponding group
-      s = self.search(self.baseg, "cn="+u[2], ['dn','uidNumber'] )
-      if len(s) > 0:
-        dn = s[0][0]
-        self.ldapconn.delete_s(dn)
-        print "group '%s' deleted" % u[2]
+      s_obj = self.search(self.baseg, "cn="+user[2], ['dn','uidNumber'])
+      if len(s_obj) > 0:
+        ldap_dn = s_obj[0][0]
+        self.ldapconn.delete_s(ldap_dn)
+        print "group '%s' deleted" % user[2]
       else:
-        print "group '%s' not found" % u[2]
+        print "group '%s' not found" % user[2]
 
-  def addGroup(self, group=None, gid=None):
-    dn = "cn=%s,%s" % (group, self.baseg)
-    print dn
+  def addgroup(self, group=None, gid=None):
+    """Add a group.
+    """
+    ldap_dn = "cn=%s,%s" % (group, self.baseg)
+    status = None
+    if self.verbose:
+      print ldap_dn
     attrs = [
       ('objectclass', ['posixGroup']),
         ('gidNumber', [gid]),
@@ -118,23 +154,28 @@ class LdapUtil:
         ('cn', [group]),
     ]
     try:
-      print dn, attrs
-      self.ldapconn.add_s(dn, attrs)
+      print ldap_dn, attrs
+      self.ldapconn.add_s(ldap_dn, attrs)
       print "Group '%s' added" % group
-    except ldap.LDAPError, e:
-      print "Group ERROR: %s => %s" % (dn, e[0]["desc"])
+      status = 1
+    except ldap.LDAPError, err:
+      print "Group ERROR: %s => %s" % (ldap_dn, err[0]["desc"])
+    return status
 
-
-  def readFile(self, filename=None):
+  #TODO() Method could be a function
+  def readfile(self, filename=None):
+    """Read a csv file to use as input.
+    Format must be: "surname, name","login","ssh-key"
+    """
     if filename == None:
       print "I need a file to actually work"
       sys.exit(1)
     users = csv.reader(open(filename), delimiter=':', quoting=csv.QUOTE_NONE)
-    list = []
+    lines = []
     for row in users:
       (surname, name) = row[0].split(',', 2)
       login = row[1]
       ssh_key = row[2]
-      list.append((name.lstrip(), surname, login, ssh_key))
-    return list
-
+      lines.append((name.lstrip(), surname, login, ssh_key))
+    return lines
+#Your code has been rated at 9.43/10
