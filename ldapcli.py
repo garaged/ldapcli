@@ -7,7 +7,7 @@ import argparse
 import ConfigParser
 from ldaputil import LdapUtil
 
-def parseArgs():
+def parseargs():
   """Parses arguments using argparse.
   Options are defined in here and passed in two objetcs with args and options.
 
@@ -18,16 +18,16 @@ def parseArgs():
     args:
   """
   parser = argparse.ArgumentParser(description='LDAP cli')
-  addGroup = parser.add_mutually_exclusive_group()
+  addgroup = parser.add_mutually_exclusive_group()
   parser.add_argument('-f', '--file', dest='filename', default=None,
                       help='Reads a file to parse.')
-  addGroup.add_argument('-a', '--add', dest='add', action="store_true",
+  addgroup.add_argument('-a', '--add', dest='add', action="store_true",
                       help='Add user(s) from file given at -f.')
-  addGroup.add_argument('-d', '--delete', dest='delete', action="store_true",
+  addgroup.add_argument('-d', '--delete', dest='delete', action="store_true",
                       help='Delete user(s) from file given at -f.')
   parser.add_argument('-g', '--group', dest='group', default=None,
                       help='Primary group for new users, only useful with -a.')
-  addGroup.add_argument('-G', '--groups', dest='groups', action="store_true",
+  addgroup.add_argument('-G', '--groups', dest='groups', action="store_true",
                       help='Show available groups to use on -g/--group.')
   parser.add_argument('-D', '--binddn', dest='binddn',
                       help='bind DN', metavar='DN',
@@ -50,16 +50,18 @@ def parseArgs():
   args = parser.parse_args()
   if args.configfile:
     #print 'config', args.configfile
-    Config = ConfigParser.ConfigParser()
-    Config.read(args.configfile)
+    config = ConfigParser.ConfigParser()
+    config.read(args.configfile)
     try:
-      args.basedn = Config.get('Main', 'basedn')
-      args.uri= Config.get('Main', 'uri')
-      args.binddn= Config.get('Main', 'binddn')
-      args.passwd= Config.get('Main', 'passwd')
+      args.basedn = config.get('Main', 'basedn')
+      args.uri = config.get('Main', 'uri')
+      args.binddn = config.get('Main', 'binddn')
+      args.passwd = config.get('Main', 'passwd')
       print args
+    #TODO() parseargs: No exception type(s) specified
     except:
-      print "Uncomplete ini file, please see sample file\n\nRequires a Main section and basedn,bindn,passwd,uri options"
+      print """Uncomplete ini file, please see sample file\n\nRequires a Main
+section and basedn,bindn,passwd,uri options"""
       sys.exit(1)
   return args
 
@@ -67,16 +69,17 @@ def parseArgs():
 def main():
   """Main function.
   """
-  args = parseArgs()
-  myldap = LdapUtil(args.uri , args.basedn, args.basep, args.baseg, args.binddn, args.passwd, args.verbose, args.test)
+  args = parseargs()
+  myldap = LdapUtil(args.uri , args.basedn, args.basep, args.baseg, args.binddn,
+                    args.passwd, args.verbose, args.test)
   if args.groups:
-    groups = myldap.getGroups()
-    for k in groups:
-      print 'group[%s] = %s'%( k,groups[k] )
+    groups = myldap.getgroups()
+    for group in groups:
+      print 'group[%s] = %s'% (group, groups[group])
   elif args.add:
-    myldap.addUser(filename = args.filename, localgid = args.group)
+    myldap.adduser(filename = args.filename, localgid = args.group)
   elif args.delete:
-    myldap.delUser(args.filename)
+    myldap.deluser(args.filename)
 
   # testing search and addUser
   #myldap.search(filter='cn=*', attrib=['cn'])
@@ -85,3 +88,4 @@ def main():
 
 if __name__ == "__main__":
   main()
+#Your code has been rated at 9.38/10
