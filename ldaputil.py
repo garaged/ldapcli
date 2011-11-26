@@ -11,7 +11,6 @@ class LdapUtil:
   LdapUtil class.
 
   """
-  #TODO() Too many arguments (10/5) Reduce this, pass the ini file.
   def __init__(self, uri=None, base=None, basep=None, baseg=None, adm=None, 
                passwd=None, verbose=False, test=False):
     """
@@ -74,7 +73,6 @@ class LdapUtil:
       groups[key] = val
     return groups
 
-  #TODO() Too many local variables (16/15)
   def adduser(self, filename=None, localuid=None, localgid=None,
               shell='/bin/bash'):
     """Add a user, using the next available UID.
@@ -162,10 +160,9 @@ class LdapUtil:
       print "Group ERROR: %s => %s" % (ldap_dn, err[0]["desc"])
     return status
 
-  #TODO() Method could be a function
   def readfile(self, filename=None):
     """Read a csv file to use as input.
-    Format must be: "surname, name","login","ssh-key"
+    Format must be: "surname, name:login:ssh-key"
     """
     if filename == None:
       print "I need a file to actually work"
@@ -178,4 +175,3 @@ class LdapUtil:
       ssh_key = row[2]
       lines.append((name.lstrip(), surname, login, ssh_key))
     return lines
-#Your code has been rated at 9.43/10

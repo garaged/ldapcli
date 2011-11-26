@@ -1,7 +1,5 @@
 #!/usr/bin/python2.6
-#
-#
-
+"""LDAP CLI utility"""
 import sys
 import argparse
 import ConfigParser
@@ -58,8 +56,7 @@ def parseargs():
       args.binddn = config.get('Main', 'binddn')
       args.passwd = config.get('Main', 'passwd')
       print args
-    #TODO() parseargs: No exception type(s) specified
-    except:
+    except args.NoSectionError:
       print """Uncomplete ini file, please see sample file\n\nRequires a Main
 section and basedn,bindn,passwd,uri options"""
       sys.exit(1)
@@ -87,5 +84,6 @@ def main():
   #  myldap.addUser("test"+str(x), "test"+str(x))
 
 if __name__ == "__main__":
+  if len(sys.argv) == 1:
+    sys.argv.append('--help')
   main()
-#Your code has been rated at 9.38/10
