@@ -55,7 +55,8 @@ def parseargs():
       args.uri = config.get('Main', 'uri')
       args.binddn = config.get('Main', 'binddn')
       args.passwd = config.get('Main', 'passwd')
-      print args
+      if args.verbose:
+        print args
     except args.NoSectionError:
       print """Uncomplete ini file, please see sample file\n\nRequires a Main
 section and basedn,bindn,passwd,uri options"""

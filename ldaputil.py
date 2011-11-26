@@ -20,7 +20,7 @@ class LdapUtil:
     self.base = base
     self.basep = basep+','+base
     self.baseg = baseg+','+base
-    self.ldapconn = ldap.open(uri)
+    self.ldapconn = ldap.initialize(uri)
     self.ldapconn.simple_bind_s(adm, passwd)
     self.ldapconn.ldap_base_db = base
     self.ldapconn.set_option(ldap.VERSION, ldap.VERSION3)
@@ -110,7 +110,8 @@ class LdapUtil:
       ]
       try:
         self.ldapconn.add_s(ldap_dn, attrs)
-        print "User '%s' added" % login
+        if self.verbose:
+          print "User '%s' added" % login
       except ldap.LDAPError, err:
         #print err
         #print "%s => %s" % (ldap_dn, attrs)
