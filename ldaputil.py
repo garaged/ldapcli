@@ -11,7 +11,7 @@ class LdapUtil:
   LdapUtil class.
 
   """
-  def __init__(self, uri=None, base=None, basep=None, baseg=None, adm=None, 
+  def __init__(self, uri=None, base=None, basep=None, baseg=None, adm=None,
                passwd=None, verbose=False, test=False):
     """
     One big overloaded method
@@ -112,12 +112,12 @@ class LdapUtil:
         self.ldapconn.add_s(ldap_dn, attrs)
         print "User '%s' added" % login
       except ldap.LDAPError, err:
-        print "User ERROR: %s => %s" % (ldap_dn, err[0]['info'])
+        #print err
         #print "%s => %s" % (ldap_dn, attrs)
-        #print e
+        print "User ERROR: %s => %s" % (ldap_dn, err[0]['desc'])
 
   def deluser(self, filename=None):
-    """Delete a user.    
+    """Delete a user.
     """
     users = self.readfile(filename)
     for user in users:
@@ -143,16 +143,15 @@ class LdapUtil:
     """
     ldap_dn = "cn=%s,%s" % (group, self.baseg)
     status = None
-    if self.verbose:
-      print ldap_dn
     attrs = [
       ('objectclass', ['posixGroup']),
         ('gidNumber', [gid]),
         ('description', [group]),
         ('cn', [group]),
     ]
-    try:
+    if self.verbose:
       print ldap_dn, attrs
+    try:
       self.ldapconn.add_s(ldap_dn, attrs)
       print "Group '%s' added" % group
       status = 1
