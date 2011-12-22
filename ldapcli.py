@@ -55,6 +55,7 @@ def parseargs():
       args.uri = config.get('Main', 'uri')
       args.binddn = config.get('Main', 'binddn')
       args.passwd = config.get('Main', 'passwd')
+      args.scheme_ldapPublicKey = config.get('scheme', 'ldapPublicKey')
       if args.verbose:
         print args
     except args.NoSectionError:
@@ -68,8 +69,7 @@ def main():
   """Main function.
   """
   args = parseargs()
-  myldap = LdapUtil(args.uri , args.basedn, args.basep, args.baseg, args.binddn,
-                    args.passwd, args.verbose, args.test)
+  myldap = LdapUtil(args)
   if args.groups:
     groups = myldap.getgroups()
     for group in groups:
@@ -78,11 +78,6 @@ def main():
     myldap.adduser(filename = args.filename, localgid = args.group)
   elif args.delete:
     myldap.deluser(args.filename)
-
-  # testing search and addUser
-  #myldap.search(filter='cn=*', attrib=['cn'])
-  #for x in range(1,10):
-  #  myldap.addUser("test"+str(x), "test"+str(x))
 
 if __name__ == "__main__":
   if len(sys.argv) == 1:

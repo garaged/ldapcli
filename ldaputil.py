@@ -11,21 +11,27 @@ class LdapUtil:
   LdapUtil class.
 
   """
-  def __init__(self, uri=None, base=None, basep=None, baseg=None, adm=None,
-               passwd=None, verbose=False, test=False):
+  #def __init__(self, uri=None, base=None, basep=None, baseg=None, adm=None,
+  #             passwd=None, verbose=False, test=False):
+  def __init__(self, args):
     """
     One big overloaded method
     """
-    self.uri = uri
-    self.base = base
-    self.basep = basep+','+base
-    self.baseg = baseg+','+base
-    self.ldapconn = ldap.initialize(uri)
-    self.ldapconn.simple_bind_s(adm, passwd)
-    self.ldapconn.ldap_base_db = base
-    self.ldapconn.set_option(ldap.VERSION, ldap.VERSION3)
-    self.verbose = verbose
-    self.test = test
+    self.uri = args.uri
+    self.base = args.basedn
+    self.basep = args.basep+','+args.basedn
+    self.baseg = args.baseg+','+args.basedn
+    self.ldapconn = ldap.initialize(self.uri)
+    self.scheme_ldapPublicKey = args.scheme_ldapPublicKey
+    try:
+      self.ldapconn.simple_bind_s(args.binddn, args.passwd)
+      self.ldapconn.ldap_base_db = self.base
+      self.ldapconn.set_option(ldap.VERSION, ldap.VERSION3)
+    except ldap.LDAPError, e:
+      print e[0]['desc']
+      sys.exit(1)
+    self.verbose = args.verbose
+    self.test = args.test
     if self.verbose or self.test:
       print "Connection successful"
   #def connect(self):
@@ -38,7 +44,7 @@ class LdapUtil:
       base = self.base
     s_obj = self.ldapconn.search_s(base, ldap.SCOPE_SUBTREE, sfilter, attrib)
     if self.verbose:
-      print "searching"
+      print "searching: %s, %s" % (base, sfilter)
     return s_obj
 
   def gethighestuid(self):
@@ -88,14 +94,18 @@ class LdapUtil:
         uid = str(int(self.gethighestuid()) + 1)
       if localgid == None:
         gid = uid
-        self.addgroup(login, gid)
+        if self.test:
+          print "test adding group: %s" % login
+        else:
+          self.addgroup(login, gid)
       else:
         gid = self.getgroupid(localgid)
       attrs = [
-        ('objectclass', ['person', 'organizationalPerson',
+        ('objectclass', ['person',
+          'organizationalPerson',
           'inetOrgPerson',
           'posixAccount',
-          'ldapPublicKey',
+          #'ldapPublicKey',
           'shadowAccount'
           ]),
         ('homeDirectory', ['/home/'+login]),
@@ -106,16 +116,30 @@ class LdapUtil:
         ('cn', [name +' '+ surname]),
         ('uidNumber', [uid]),
         ('gidNumber', [gid]),
-        ('sshPublicKey', [ssh_key]),
+        #('sshPublicKey', [ssh_key]),
       ]
-      try:
-        self.ldapconn.add_s(ldap_dn, attrs)
-        if self.verbose:
-          print "User '%s' added" % login
-      except ldap.LDAPError, err:
-        #print err
-        #print "%s => %s" % (ldap_dn, attrs)
-        print "User ERROR: %s => %s" % (ldap_dn, err[0]['desc'])
+      search_user = self.search(self.basep, "uid="+login, ['uid','uidNumber'])
+      if search_user.__len__() > 0:
+        user_exists = True
+      else:
+        user_exists = False
+      if self.verbose:
+        print ldap_dn, attrs
+        if self.test:
+          print "testing add user: %s" % login
+      if user_exists:
+        print "User already exists"
+      else:
+        if self.scheme_ldapPublicKey:
+          attrs[0][1].append('ldapPublicKey')
+          attrs.append(('sshPublicKey', [ssh_key]))
+        else:
+          try:
+            self.ldapconn.add_s(ldap_dn, attrs)
+            if self.verbose:
+              print "User '%s' added" % login
+          except ldap.LDAPError, err:
+            print "User ERROR: %s => %s" % (ldap_dn, err[0]['desc'])
 
   def deluser(self, filename=None):
     """Delete a user.
@@ -125,9 +149,12 @@ class LdapUtil:
       # search user
       s_obj = self.search(self.basep, "uid="+user[2], ['dn','uidNumber'])
       if len(s_obj) > 0:
-        ldap_dn = s_obj[0][0]
-        self.ldapconn.delete_s(ldap_dn)
-        print "user '%s' deleted" % user[2]
+        if self.test:
+          print "testing delete for: %s" % user[2]
+        else:
+          ldap_dn = s_obj[0][0]
+          self.ldapconn.delete_s(ldap_dn)
+          print "user '%s' deleted" % user[2]
       else:
         print "user '%s' not found" % user[2]
       # search corresponding group
@@ -152,12 +179,25 @@ class LdapUtil:
     ]
     if self.verbose:
       print ldap_dn, attrs
-    try:
-      self.ldapconn.add_s(ldap_dn, attrs)
-      print "Group '%s' added" % group
-      status = 1
-    except ldap.LDAPError, err:
-      print "Group ERROR: %s => %s" % (ldap_dn, err[0]["desc"])
+      search_group = self.search(self.baseg, "cn="+group, ['dn','gidNumber'])
+      if search_group.__len__() > 0:
+        group_exists = True
+      else:
+        group_exists = False
+    if self.test:
+      print "would add: %s" % group
+      if group_exists > 0:
+        print "%s does exists, so that part would fail, account will created though" % group
+      else:
+        status = 1
+    else:
+      try:
+        self.ldapconn.add_s(ldap_dn, attrs)
+        if self.verbose:
+          print "Group '%s' added" % group
+        status = 1
+      except ldap.LDAPError, err:
+        print "Group ERROR: %s => %s" % (ldap_dn, err[0]["desc"])
     return status
 
   def readfile(self, filename=None):
