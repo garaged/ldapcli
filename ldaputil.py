@@ -11,8 +11,6 @@ class LdapUtil:
   LdapUtil class.
 
   """
-  #def __init__(self, uri=None, base=None, basep=None, baseg=None, adm=None,
-  #             passwd=None, verbose=False, test=False):
   def __init__(self, args):
     """
     One big overloaded method
@@ -27,8 +25,8 @@ class LdapUtil:
       self.ldapconn.simple_bind_s(args.binddn, args.passwd)
       self.ldapconn.ldap_base_db = self.base
       self.ldapconn.set_option(ldap.VERSION, ldap.VERSION3)
-    except ldap.LDAPError, e:
-      print e[0]['desc']
+    except ldap.LDAPError, error:
+      print error[0]['desc']
       sys.exit(1)
     self.verbose = args.verbose
     self.test = args.test
@@ -105,7 +103,6 @@ class LdapUtil:
           'organizationalPerson',
           'inetOrgPerson',
           'posixAccount',
-          #'ldapPublicKey',
           'shadowAccount'
           ]),
         ('homeDirectory', ['/home/'+login]),
@@ -116,7 +113,6 @@ class LdapUtil:
         ('cn', [name +' '+ surname]),
         ('uidNumber', [uid]),
         ('gidNumber', [gid]),
-        #('sshPublicKey', [ssh_key]),
       ]
       search_user = self.search(self.basep, "uid="+login, ['uid','uidNumber'])
       if search_user.__len__() > 0:
@@ -133,13 +129,12 @@ class LdapUtil:
         if self.scheme_ldapPublicKey:
           attrs[0][1].append('ldapPublicKey')
           attrs.append(('sshPublicKey', [ssh_key]))
-        else:
-          try:
-            self.ldapconn.add_s(ldap_dn, attrs)
-            if self.verbose:
-              print "User '%s' added" % login
-          except ldap.LDAPError, err:
-            print "User ERROR: %s => %s" % (ldap_dn, err[0]['desc'])
+        try:
+          self.ldapconn.add_s(ldap_dn, attrs)
+          if self.verbose:
+            print "User '%s' added" % login
+        except ldap.LDAPError, err:
+          print "User ERROR: %s => %s" % (ldap_dn, err[0]['desc'])
 
   def deluser(self, filename=None):
     """Delete a user.
@@ -187,7 +182,7 @@ class LdapUtil:
     if self.test:
       print "would add: %s" % group
       if group_exists > 0:
-        print "%s does exists, so that part would fail, account will created though" % group
+        print "%s does exists, that would fail" % group
       else:
         status = 1
     else:

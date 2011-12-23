@@ -55,7 +55,7 @@ def parseargs():
       args.uri = config.get('Main', 'uri')
       args.binddn = config.get('Main', 'binddn')
       args.passwd = config.get('Main', 'passwd')
-      args.scheme_ldapPublicKey = config.get('scheme', 'ldapPublicKey')
+      args.scheme_ldapPublicKey = config.getboolean('scheme', 'ldapPublicKey')
       if args.verbose:
         print args
     except args.NoSectionError:
