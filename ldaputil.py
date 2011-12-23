@@ -62,6 +62,7 @@ class LdapUtil:
     """Return gid if exists, else return guest group id.
     """
     search_group = self.search(self.baseg, "cn="+group, ['dn','gidNumber'])
+    print search_group
     return search_group[0][1]['gidNumber'][0]
 
   def getgroups(self):
@@ -114,11 +115,7 @@ class LdapUtil:
         ('uidNumber', [uid]),
         ('gidNumber', [gid]),
       ]
-      search_user = self.search(self.basep, "uid="+login, ['uid','uidNumber'])
-      if search_user.__len__() > 0:
-        user_exists = True
-      else:
-        user_exists = False
+      user_exists = self.exists(self.basep, "uid="+login, ['uid','uidNumber'])
       if self.verbose:
         print ldap_dn, attrs
         if self.test:
@@ -129,12 +126,15 @@ class LdapUtil:
         if self.scheme_ldapPublicKey:
           attrs[0][1].append('ldapPublicKey')
           attrs.append(('sshPublicKey', [ssh_key]))
-        try:
-          self.ldapconn.add_s(ldap_dn, attrs)
-          if self.verbose:
-            print "User '%s' added" % login
-        except ldap.LDAPError, err:
-          print "User ERROR: %s => %s" % (ldap_dn, err[0]['desc'])
+        if self.test:
+          print "test adding group: %s" % login
+        else:
+          try:
+            self.ldapconn.add_s(ldap_dn, attrs)
+            if self.verbose:
+              print "User '%s' added" % login
+          except ldap.LDAPError, err:
+            print "User ERROR: %s => %s" % (ldap_dn, err[0]['desc'])
 
   def deluser(self, filename=None):
     """Delete a user.
@@ -142,58 +142,61 @@ class LdapUtil:
     users = self.readfile(filename)
     for user in users:
       # search user
-      s_obj = self.search(self.basep, "uid="+user[2], ['dn','uidNumber'])
-      if len(s_obj) > 0:
+      if self.exists(self.basep, "uid="+user[2], ['dn','uidNumber']):
         if self.test:
-          print "testing delete for: %s" % user[2]
+          print "testing delete user: %s" % user[2]
         else:
-          ldap_dn = s_obj[0][0]
-          self.ldapconn.delete_s(ldap_dn)
+          self.ldapconn.delete_s("uid="+user[2]+","+self.basep)
           print "user '%s' deleted" % user[2]
       else:
         print "user '%s' not found" % user[2]
       # search corresponding group
-      s_obj = self.search(self.baseg, "cn="+user[2], ['dn','uidNumber'])
-      if len(s_obj) > 0:
-        ldap_dn = s_obj[0][0]
-        self.ldapconn.delete_s(ldap_dn)
-        print "group '%s' deleted" % user[2]
+      if self.exists(self.baseg, "cn="+user[2], ['dn','gidNumber']):
+        if self.test:
+          print "testing delete group: %s" % user[2]
+        else:
+          self.ldapconn.delete_s("cn="+user[2]+","+self.baseg)
+          print "group '%s' deleted" % user[2]
       else:
         print "group '%s' not found" % user[2]
+
+  def exists(self, base, search, params):
+    exits = False
+    s_obj = self.search(base, search, params)
+    if len(s_obj) > 0:
+      if self.verbose:
+        for row in s_obj:
+          print row
+        exits = True
+    return exits
 
   def addgroup(self, group=None, gid=None):
     """Add a group.
     """
     ldap_dn = "cn=%s,%s" % (group, self.baseg)
-    status = None
     attrs = [
       ('objectclass', ['posixGroup']),
         ('gidNumber', [gid]),
         ('description', [group]),
         ('cn', [group]),
     ]
+    group_exists = self.exists(self.baseg, "cn="+group, ['dn','gidNumber'])
     if self.verbose:
       print ldap_dn, attrs
-      search_group = self.search(self.baseg, "cn="+group, ['dn','gidNumber'])
-      if search_group.__len__() > 0:
-        group_exists = True
-      else:
-        group_exists = False
     if self.test:
       print "would add: %s" % group
       if group_exists > 0:
-        print "%s does exists, that would fail" % group
-      else:
-        status = 1
+        print "%s does exists, add would fail" % group
     else:
-      try:
-        self.ldapconn.add_s(ldap_dn, attrs)
-        if self.verbose:
-          print "Group '%s' added" % group
-        status = 1
-      except ldap.LDAPError, err:
-        print "Group ERROR: %s => %s" % (ldap_dn, err[0]["desc"])
-    return status
+      if group_exists > 0:
+        print "Group exists, not trying to create it"
+      else:
+        try:
+          self.ldapconn.add_s(ldap_dn, attrs)
+          if self.verbose:
+            print "Group '%s' added" % group
+        except ldap.LDAPError, err:
+          print "Group ERROR: %s => %s" % (ldap_dn, err[0]["desc"])
 
   def readfile(self, filename=None):
     """Read a csv file to use as input.
